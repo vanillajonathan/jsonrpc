@@ -22,6 +22,9 @@ class JSONRPC {
             throw new TypeError('Argument is not of type WebSocket.');
         }
 
+        /** System extension methods that the server can invoke. */
+        this.extensions = {};
+
         /** Local methods that the server can invoke. */
         this.methods = methods;
 
@@ -147,7 +150,17 @@ class JSONRPC {
                 this._error(`Unknown response id: ${data.id}.`, data);
             }
         } else if (data.hasOwnProperty('method')) {
-            if (this.methods.hasOwnProperty(data.method)) {
+            if (data.method.startsWith('rpc.')) {
+                const method = data.method.slice(4);
+                if (this.extensions.hasOwnProperty(method)) {
+                    const response = this.extensions[method](data.params);
+                    if (data.id !== undefined) {
+                        this._socket.send(JSON.stringify(response));
+                    }
+                } else {
+                    this._error(`Server called an unknown extension method: ${method}.`, data);
+                }
+            } else if (this.methods.hasOwnProperty(data.method)) {
                 const response = this.methods[data.method](data.params);
                 if (data.id !== undefined) {
                     this._socket.send(JSON.stringify(response));
